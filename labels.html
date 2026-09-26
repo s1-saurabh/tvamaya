@@ -231,25 +231,37 @@ function renderLabel(item, L = layout) {
   const tw = (L.qrSide === 'left' ? W - m : qx - gap) - tx;
   const F = L.fields, font = (pt, w='600') => `${w} ${ptPx(pt)}px -apple-system, "Helvetica Neue", Arial, sans-serif`;
   g.textBaseline = 'top';
-  let y = m;
-  const line = (text, pt, weight, maxLines = 1) => {
-    if (!text) return; g.font = font(pt, weight);
-    const lh = Math.round(ptPx(pt) * 1.15);
-    wrap(g, text, tw, maxLines).forEach(t => { g.fillText(t, tx, y); y += lh; });
-  };
-  if (F.brand.on)   line(L.brandText, F.brand.pt, '800');
-  if (F.brand.on)   y += Math.round(ptPx(F.brand.pt) * 0.2);
-  if (F.name.on)    line(item.name, F.name.pt, '600', 2);
+  const mono = pt => `500 ${ptPx(pt)}px ui-monospace, Menlo, monospace`;
   const det = [item.fabric, item.emb1, item.emb2].filter(Boolean).join(' · ');
-  if (F.details.on) line(det, F.details.pt, '400', 1);
-  if (F.size.on && item.size) line('Size: ' + item.size, F.size.pt, '700');
+  const size = String(item.size || '').trim();
 
-  // Bottom-anchored: price above tag code
-  let yb = H - m;
-  if (F.tag.on) { g.font = `500 ${ptPx(F.tag.pt)}px ui-monospace, Menlo, monospace`; g.textBaseline = 'bottom';
-                  g.fillText(fit(g, item.tag, tw), tx, yb); yb -= Math.round(ptPx(F.tag.pt) * 1.25); }
-  if (F.price.on && item.tagPrice) { g.font = font(F.price.pt, '800'); g.textBaseline = 'bottom';
-                  g.fillText('₹ ' + Number(item.tagPrice).toLocaleString('en-IN'), tx, yb); }
+  // Rows, top to bottom. Size always gets its own row under name + description.
+  const rows = [];
+  if (F.brand.on)   rows.push({ id:'brand',   text:L.brandText, f:font(F.brand.pt,'800'),  pt:F.brand.pt,   lines:1, after:0.2 });
+  if (F.name.on)    rows.push({ id:'name',    text:item.name,   f:font(F.name.pt,'600'),   pt:F.name.pt,    lines:2 });
+  if (F.details.on && det) rows.push({ id:'details', text:det, f:font(F.details.pt,'400'), pt:F.details.pt, lines:1 });
+  if (F.size.on && size)   rows.push({ id:'size',    text:'SIZE: ' + size, f:font(F.size.pt,'800'), pt:F.size.pt, lines:1, before:0.15 });
+  const bottom = [];
+  if (F.price.on && item.tagPrice) bottom.push({ id:'price', text:'₹ ' + Number(item.tagPrice).toLocaleString('en-IN'), f:font(F.price.pt,'800'), pt:F.price.pt, lines:1 });
+  if (F.tag.on)     bottom.push({ id:'tag', text:item.tag, f:mono(F.tag.pt), pt:F.tag.pt, lines:1 });
+
+  const lh = r => Math.round(ptPx(r.pt) * 1.15);
+  const rowH = r => { g.font = r.f; r.wrapped = wrap(g, r.text, tw, r.lines);
+                      return r.wrapped.length * lh(r) + Math.round(ptPx(r.pt) * ((r.before||0) + (r.after||0))); };
+  const total = () => [...rows, ...bottom].reduce((s, r) => s + rowH(r), 0);
+  // If it doesn't fit: name to 1 line, then drop description, then brand. Size and price are never dropped.
+  const avail = H - 2*m;
+  const nameRow = rows.find(r => r.id === 'name');
+  if (total() > avail && nameRow) nameRow.lines = 1;
+  for (const id of ['details', 'brand']) if (total() > avail) { const i = rows.findIndex(r => r.id === id); if (i >= 0) rows.splice(i, 1); }
+  total();
+
+  let y = m;
+  rows.forEach(r => { y += Math.round(ptPx(r.pt) * (r.before||0)); g.font = r.f;
+                      r.wrapped.forEach(t => { g.fillText(t, tx, y); y += lh(r); }); y += Math.round(ptPx(r.pt) * (r.after||0)); });
+  let yb = H - m; g.textBaseline = 'bottom';
+  [...bottom].reverse().forEach(r => { g.font = r.f; g.fillText(r.wrapped[0], tx, yb); yb -= lh(r); });
+  g.textBaseline = 'top';
 
   if (L.border) { g.strokeStyle = '#000'; g.lineWidth = 2; g.strokeRect(1, 1, W - 2, H - 2); }
   if (L.pureBW) threshold(g, W, H);
