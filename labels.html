@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tvamaya Labels</title>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root { --bg:#f6f5f2; --card:#fff; --ink:#1d2327; --muted:#6b7378; --line:#e3e1dc; --accent:#2f3e46; --ok:#2e7d4f; --bad:#b3261e; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; background:var(--bg); color:var(--ink); }
+  header { background:var(--accent); color:#fff; padding:12px 16px; display:flex; align-items:center; gap:12px; }
+  header h1 { font-size:17px; margin:0; letter-spacing:.04em; flex:1; }
+  header button { background:transparent; color:#fff; border:1px solid rgba(255,255,255,.5); }
+  main { max-width:1100px; margin:0 auto; padding:16px; display:grid; grid-template-columns: 1fr; gap:16px; }
+  @media (min-width: 900px) { main { grid-template-columns: 380px 1fr; } }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:14px; }
+  .card h2 { font-size:14px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); margin:0 0 10px; }
+  button { font:inherit; padding:9px 14px; border-radius:8px; border:1px solid var(--line); background:#fff; color:var(--ink); cursor:pointer; }
+  button.primary { background:var(--accent); color:#fff; border-color:var(--accent); }
+  button:disabled { opacity:.5; cursor:default; }
+  input[type=text], input[type=password], input[type=number], input[type=search], select {
+    font:inherit; padding:8px 10px; border:1px solid var(--line); border-radius:8px; width:100%; background:#fff; color:var(--ink); }
+  label.row { display:flex; align-items:center; gap:8px; margin:6px 0; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+  .field { display:grid; grid-template-columns: 22px 1fr 70px; align-items:center; gap:8px; padding:5px 0; border-bottom:1px solid var(--line); }
+  .field:last-child { border-bottom:0; }
+  .field input[type=number] { padding:5px 6px; }
+  .small { font-size:12px; color:var(--muted); }
+  .msg { padding:10px 12px; border-radius:8px; margin-bottom:10px; display:none; }
+  .msg.err { display:block; background:#fdecea; color:var(--bad); }
+  .msg.info { display:block; background:#eef3f1; color:var(--ok); }
+  #list { max-height:420px; overflow:auto; border:1px solid var(--line); border-radius:8px; }
+  .item { display:grid; grid-template-columns: 24px 1fr auto; gap:8px; align-items:center; padding:8px 10px; border-bottom:1px solid var(--line); cursor:pointer; }
+  .item:last-child { border-bottom:0; }
+  .item.active { background:#eef1f2; }
+  .item .t { font-size:12px; color:var(--muted); font-family: ui-monospace, Menlo, monospace; }
+  .badge { font-size:11px; padding:2px 7px; border-radius:10px; background:#e8f3ec; color:var(--ok); white-space:nowrap; }
+  .badge.sold { background:#f3e8e8; color:var(--bad); }
+  .toolbar { display:flex; flex-wrap:wrap; gap:8px; margin:10px 0; }
+  #previewWrap { background:repeating-conic-gradient(#eee 0% 25%, #fafafa 0% 50%) 50% / 16px 16px; border-radius:8px; padding:20px; display:flex; justify-content:center; }
+  #preview { max-width:100%; height:auto; box-shadow:0 1px 6px rgba(0,0,0,.2); background:#fff; image-rendering: pixelated; }
+  details summary { cursor:pointer; font-weight:600; padding:4px 0; }
+  .hidden { display:none !important; }
+</style>
+</head>
+<body>
+<header>
+  <h1>TVAMAYA · LABELS</h1>
+  <button id="btnSettings">Settings</button>
+</header>
+
+<main>
+  <section class="card" id="settingsCard" style="grid-column:1/-1">
+    <h2>Connection</h2>
+    <div class="grid2">
+      <div><div class="small">Script URL</div><input type="text" id="apiUrl"></div>
+      <div><div class="small">PIN</div><input type="password" id="pin" inputmode="numeric" autocomplete="off"></div>
+    </div>
+    <div class="toolbar"><button class="primary" id="btnConnect">Save &amp; load items</button></div>
+    <div class="small">Saved on this device only. The PIN is never stored in the page's code.</div>
+  </section>
+
+  <div>
+    <section class="card">
+      <h2>Items</h2>
+      <div id="msg" class="msg"></div>
+      <input type="search" id="search" placeholder="Search name, tag, size…">
+      <div class="toolbar">
+        <label class="row" style="margin:0"><input type="checkbox" id="inStockOnly" checked> In stock only</label>
+        <button id="btnSelectAll">Select all shown</button>
+        <button id="btnClear">Clear</button>
+      </div>
+      <div id="list"><div class="item small">Not loaded yet.</div></div>
+      <div class="toolbar">
+        <button class="primary" id="btnPdf" disabled>PDF of selected (0)</button>
+        <button id="btnReload">Reload</button>
+      </div>
+    </section>
+  </div>
+
+  <div>
+    <section class="card">
+      <h2>Preview</h2>
+      <div id="previewWrap"><canvas id="preview"></canvas></div>
+      <div class="toolbar">
+        <button class="primary" id="btnShare">Share / Print PNG</button>
+        <button id="btnDownload">Download PNG</button>
+      </div>
+      <div class="small" id="previewInfo"></div>
+    </section>
+
+    <section class="card" style="margin-top:16px">
+      <h2>Layout</h2>
+      <div class="grid2">
+        <div><div class="small">Width (mm)</div><input type="number" id="wmm" min="20" max="120" step="1"></div>
+        <div><div class="small">Height (mm)</div><input type="number" id="hmm" min="15" max="120" step="1"></div>
+        <div><div class="small">Printer DPI</div>
+          <select id="dpi"><option value="203">203 (most thermal)</option><option value="300">300</option></select></div>
+        <div><div class="small">QR position</div>
+          <select id="qrSide"><option value="left">Left</option><option value="right">Right</option></select></div>
+        <div><div class="small">QR size (mm)</div><input type="number" id="qrmm" min="12" max="60" step="1"></div>
+        <div><div class="small">Brand text</div><input type="text" id="brandText"></div>
+      </div>
+
+      <details open style="margin-top:10px">
+        <summary>Fields &amp; font size (pt)</summary>
+        <div id="fields"></div>
+      </details>
+
+      <label class="row"><input type="checkbox" id="pureBW"> Pure black &amp; white (sharper on thermal printers)</label>
+      <label class="row"><input type="checkbox" id="border"> Draw border (for checking alignment)</label>
+      <div class="toolbar"><button id="btnResetLayout">Reset layout</button></div>
+    </section>
+  </div>
+</main>
+
+<script>
+const DEFAULT_API = 'https://script.google.com/macros/s/AKfycbwrxiJ0bHhlDJ0lMg4lxQgltBxdM-EUykZZXUDODoS4N-ZNR393WpwHQJVlTHFu5tXv/exec';
+
+const FIELD_DEFS = [
+  { key:'brand',   label:'Brand',              pt:7,  on:true  },
+  { key:'name',    label:'Product name',       pt:7,  on:true  },
+  { key:'details', label:'Fabric · Embroidery',pt:6,  on:true  },
+  { key:'size',    label:'Size',               pt:8,  on:true  },
+  { key:'price',   label:'Price',              pt:12, on:true  },
+  { key:'tag',     label:'Tag code',           pt:5,  on:true  },
+];
+const DEFAULT_LAYOUT = { wmm:50, hmm:30, dpi:203, qrSide:'left', qrmm:24, brandText:'TVAMAYA', pureBW:true, border:false,
+  fields: Object.fromEntries(FIELD_DEFS.map(f => [f.key, { on:f.on, pt:f.pt }])) };
+
+// ---------- storage (per device, fail-safe) ----------
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('tv_' + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem('tv_' + k, JSON.stringify(v)); } catch {} }
+};
+
+let layout = Object.assign({}, DEFAULT_LAYOUT, store.get('layout', {}));
+layout.fields = Object.assign({}, DEFAULT_LAYOUT.fields, layout.fields || {});
+let items = [], selected = new Set(), current = null;
+const params = new URLSearchParams(location.search);
+const DEMO = params.has('demo');
+
+const $ = id => document.getElementById(id);
+
+// ---------- API ----------
+async function api(action, extra = {}) {
+  if (DEMO) return demoApi(action);
+  const url = store.get('api', DEFAULT_API), pin = store.get('pin', '');
+  if (!pin) throw new Error('Enter your PIN in Settings.');
+  const res = await fetch(url, { method:'POST', headers:{ 'Content-Type':'text/plain;charset=utf-8' },
+                                 body: JSON.stringify(Object.assign({ action, pin }, extra)) });
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error || 'Request failed');
+  return data;
+}
+function demoApi() {
+  return { ok:true, items:[
+    { serial:45, tag:'TV-UP-RD-OR-2609-00045', name:'TEST - Blue organza kurta', fabric:'Organza', emb1:'Chikankari', emb2:'', size:'M', tagPrice:1599, status:'In stock' },
+    { serial:1,  tag:'TV-UP-US-MC-2609-00001', name:'Mul Chanderi Kashmiri handwork - Olive green', fabric:'Mul Chanderi', emb1:'Kashmiri Embroidery', emb2:'', size:'', tagPrice:3642, status:'In stock' },
+    { serial:7,  tag:'TV-UP-US-BS-2609-00007', name:'Banarasi Silk with Zardosi + French Knot', fabric:'Banarasi Silk', emb1:'Zardosi', emb2:'French Knot', size:'', tagPrice:4550, status:'In stock' },
+    { serial:44, tag:'TV-CH-RD-SL-2609-00044', name:'white with handwork - 3 piece Silk', fabric:'Silk', emb1:'Hand Embroidery', emb2:'', size:'XL', tagPrice:7699, status:'Sold' },
+  ]};
+}
+
+// ---------- messages ----------
+function showMsg(text, kind='err') { const m = $('msg'); m.textContent = text; m.className = 'msg ' + kind; }
+function clearMsg() { $('msg').className = 'msg'; }
+
+// ---------- list ----------
+async function loadItems() {
+  clearMsg(); $('list').innerHTML = '<div class="item small">Loading…</div>';
+  try {
+    const data = await api('items');
+    items = data.items.sort((a,b) => a.serial - b.serial);
+    renderList();
+    const want = Number(params.get('serial'));
+    const pick = items.find(i => i.serial === want) || items.find(i => i.status === 'In stock') || items[0];
+    if (pick) choose(pick);
+    if (want && !items.find(i => i.serial === want)) showMsg('Serial ' + want + ' not found in the Stock tab.');
+  } catch (e) {
+    $('list').innerHTML = '<div class="item small">Could not load items.</div>';
+    showMsg(e.message);
+    if (/PIN/i.test(e.message)) $('settingsCard').classList.remove('hidden');
+  }
+}
+
+function renderList() {
+  const q = $('search').value.trim().toLowerCase(), onlyIn = $('inStockOnly').checked;
+  const shown = items.filter(i => (!onlyIn || i.status === 'In stock') &&
+    (!q || (i.name + ' ' + i.tag + ' ' + i.size + ' ' + i.fabric).toLowerCase().includes(q)));
+  $('list').innerHTML = '';
+  if (!shown.length) { $('list').innerHTML = '<div class="item small">No items match.</div>'; }
+  shown.forEach(i => {
+    const row = document.createElement('div');
+    row.className = 'item' + (current && current.serial === i.serial ? ' active' : '');
+    row.innerHTML = `<input type="checkbox" ${selected.has(i.serial) ? 'checked' : ''}>
+      <div><div>${esc(i.name)}${i.size ? ' · <b>' + esc(i.size) + '</b>' : ''}</div><div class="t">${esc(i.tag)}</div></div>
+      <span class="badge ${i.status === 'Sold' ? 'sold' : ''}">${i.status}</span>`;
+    const cb = row.querySelector('input');
+    cb.addEventListener('click', e => { e.stopPropagation(); cb.checked ? selected.add(i.serial) : selected.delete(i.serial); updatePdfBtn(); });
+    row.addEventListener('click', () => choose(i));
+    $('list').appendChild(row);
+  });
+  $('list').dataset.shown = JSON.stringify(shown.map(i => i.serial));
+  updatePdfBtn();
+}
+function updatePdfBtn() { $('btnPdf').textContent = `PDF of selected (${selected.size})`; $('btnPdf').disabled = !selected.size; }
+function choose(i) { current = i; renderList(); drawPreview(); }
+function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+// ---------- label rendering ----------
+function renderLabel(item, L = layout) {
+  const dpmm = L.dpi / 25.4, px = mm => Math.round(mm * dpmm), ptPx = pt => Math.round(pt / 72 * L.dpi);
+  const W = px(L.wmm), H = px(L.hmm), m = px(1.5), gap = px(1.5);
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const g = c.getContext('2d');
+  g.fillStyle = '#fff'; g.fillRect(0, 0, W, H); g.fillStyle = '#000';
+
+  // QR
+  let qrPx = Math.min(px(L.qrmm), H - 2*m, W - 4*m);
+  const qr = qrcode(0, 'M'); qr.addData(item.tag); qr.make();
+  const n = qr.getModuleCount(), cell = Math.floor(qrPx / n); qrPx = cell * n;
+  const qm = Math.max(m, 2*cell), qx = L.qrSide === 'left' ? qm : W - qm - qrPx, qy = Math.round((H - qrPx) / 2);
+  for (let r = 0; r < n; r++) for (let col = 0; col < n; col++)
+    if (qr.isDark(r, col)) g.fillRect(qx + col*cell, qy + r*cell, cell, cell);
+
+  // Text column
+  const tx = L.qrSide === 'left' ? qx + qrPx + gap : m;
+  const tw = (L.qrSide === 'left' ? W - m : qx - gap) - tx;
+  const F = L.fields, font = (pt, w='600') => `${w} ${ptPx(pt)}px -apple-system, "Helvetica Neue", Arial, sans-serif`;
+  g.textBaseline = 'top';
+  let y = m;
+  const line = (text, pt, weight, maxLines = 1) => {
+    if (!text) return; g.font = font(pt, weight);
+    const lh = Math.round(ptPx(pt) * 1.15);
+    wrap(g, text, tw, maxLines).forEach(t => { g.fillText(t, tx, y); y += lh; });
+  };
+  if (F.brand.on)   line(L.brandText, F.brand.pt, '800');
+  if (F.brand.on)   y += Math.round(ptPx(F.brand.pt) * 0.2);
+  if (F.name.on)    line(item.name, F.name.pt, '600', 2);
+  const det = [item.fabric, item.emb1, item.emb2].filter(Boolean).join(' · ');
+  if (F.details.on) line(det, F.details.pt, '400', 1);
+  if (F.size.on && item.size) line('Size: ' + item.size, F.size.pt, '700');
+
+  // Bottom-anchored: price above tag code
+  let yb = H - m;
+  if (F.tag.on) { g.font = `500 ${ptPx(F.tag.pt)}px ui-monospace, Menlo, monospace`; g.textBaseline = 'bottom';
+                  g.fillText(fit(g, item.tag, tw), tx, yb); yb -= Math.round(ptPx(F.tag.pt) * 1.25); }
+  if (F.price.on && item.tagPrice) { g.font = font(F.price.pt, '800'); g.textBaseline = 'bottom';
+                  g.fillText('₹ ' + Number(item.tagPrice).toLocaleString('en-IN'), tx, yb); }
+
+  if (L.border) { g.strokeStyle = '#000'; g.lineWidth = 2; g.strokeRect(1, 1, W - 2, H - 2); }
+  if (L.pureBW) threshold(g, W, H);
+  return c;
+}
+function wrap(g, text, maxW, maxLines) {
+  const words = String(text).split(/\s+/), out = []; let cur = '';
+  for (const w of words) {
+    const t = cur ? cur + ' ' + w : w;
+    if (g.measureText(t).width <= maxW) cur = t;
+    else { if (cur) out.push(cur); cur = w; if (out.length === maxLines) break; }
+  }
+  if (out.length < maxLines && cur) out.push(cur);
+  const used = out.join(' ').split(/\s+/).length;
+  if (used < words.length || g.measureText(out[out.length-1] || '').width > maxW) out[out.length-1] = fit(g, out[out.length-1] + '…', maxW);
+  return out.slice(0, maxLines);
+}
+function fit(g, t, maxW) { if (g.measureText(t).width <= maxW) return t; while (t.length > 1 && g.measureText(t + '…').width > maxW) t = t.slice(0, -1); return t.replace(/…$/, '') + '…'; }
+function threshold(g, W, H) {
+  const d = g.getImageData(0, 0, W, H), p = d.data;
+  for (let i = 0; i < p.length; i += 4) { const v = (p[i]*0.3 + p[i+1]*0.59 + p[i+2]*0.11) < 150 ? 0 : 255; p[i]=p[i+1]=p[i+2]=v; p[i+3]=255; }
+  g.putImageData(d, 0, 0);
+}
+
+function drawPreview() {
+  if (!current) return;
+  const c = renderLabel(current), pv = $('preview');
+  pv.width = c.width; pv.height = c.height; pv.getContext('2d').drawImage(c, 0, 0);
+  pv.style.width = Math.min(c.width * 1.3, 520) + 'px';
+  $('previewInfo').textContent = `${current.tag} · ${layout.wmm}×${layout.hmm} mm · ${c.width}×${c.height}px @ ${layout.dpi} dpi`;
+}
+
+// ---------- output ----------
+function fileName(i) { return `label-${String(i.serial).padStart(5,'0')}.png`; }
+function toBlob(c) { return new Promise(r => c.toBlob(r, 'image/png')); }
+async function sharePng() {
+  if (!current) return;
+  const blob = await toBlob(renderLabel(current)), file = new File([blob], fileName(current), { type:'image/png' });
+  if (navigator.canShare && navigator.canShare({ files:[file] })) {
+    try { await navigator.share({ files:[file], title: current.tag }); } catch (e) { /* user cancelled */ }
+  } else downloadBlob(blob, file.name);
+}
+async function downloadPng() { if (current) downloadBlob(await toBlob(renderLabel(current)), fileName(current)); }
+function downloadBlob(blob, name) { const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); }
+function makePdf() {
+  const list = items.filter(i => selected.has(i.serial)); if (!list.length) return;
+  const { jsPDF } = window.jspdf, w = layout.wmm, h = layout.hmm, o = w > h ? 'landscape' : 'portrait';
+  const pdf = new jsPDF({ unit:'mm', format:[w, h], orientation:o });
+  list.forEach((i, k) => { if (k) pdf.addPage([w, h], o); pdf.addImage(renderLabel(i).toDataURL('image/png'), 'PNG', 0, 0, w, h); });
+  pdf.save(`tvamaya-labels-${list.length}.pdf`);
+}
+
+// ---------- layout UI ----------
+function buildLayoutUI() {
+  $('wmm').value = layout.wmm; $('hmm').value = layout.hmm; $('dpi').value = layout.dpi;
+  $('qrSide').value = layout.qrSide; $('qrmm').value = layout.qrmm; $('brandText').value = layout.brandText;
+  $('pureBW').checked = layout.pureBW; $('border').checked = layout.border;
+  $('fields').innerHTML = '';
+  FIELD_DEFS.forEach(f => {
+    const row = document.createElement('div'); row.className = 'field';
+    row.innerHTML = `<input type="checkbox" ${layout.fields[f.key].on ? 'checked' : ''}><span>${f.label}</span>
+                     <input type="number" min="4" max="30" step="0.5" value="${layout.fields[f.key].pt}">`;
+    const [cb, , num] = row.children;
+    cb.addEventListener('change', () => { layout.fields[f.key].on = cb.checked; saveLayout(); });
+    num.addEventListener('input', () => { layout.fields[f.key].pt = Number(num.value) || f.pt; saveLayout(); });
+    $('fields').appendChild(row);
+  });
+}
+function saveLayout() { store.set('layout', layout); drawPreview(); }
+[['wmm','number'],['hmm','number'],['dpi','number'],['qrSide','text'],['qrmm','number'],['brandText','text']].forEach(([id, t]) =>
+  $(id).addEventListener('input', () => { const v = $(id).value; layout[id] = t === 'number' ? (Number(v) || DEFAULT_LAYOUT[id]) : v; saveLayout(); }));
+['pureBW','border'].forEach(id => $(id).addEventListener('change', () => { layout[id] = $(id).checked; saveLayout(); }));
+$('btnResetLayout').onclick = () => { layout = JSON.parse(JSON.stringify(DEFAULT_LAYOUT)); buildLayoutUI(); saveLayout(); };
+
+// ---------- wiring ----------
+$('btnSettings').onclick = () => $('settingsCard').classList.toggle('hidden');
+$('btnConnect').onclick = () => { store.set('api', $('apiUrl').value.trim() || DEFAULT_API); store.set('pin', $('pin').value.trim());
+                                   $('settingsCard').classList.add('hidden'); loadItems(); };
+$('btnReload').onclick = loadItems;
+$('search').oninput = renderList; $('inStockOnly').onchange = renderList;
+$('btnSelectAll').onclick = () => { JSON.parse($('list').dataset.shown || '[]').forEach(s => selected.add(s)); renderList(); };
+$('btnClear').onclick = () => { selected.clear(); renderList(); };
+$('btnPdf').onclick = makePdf; $('btnShare').onclick = sharePng; $('btnDownload').onclick = downloadPng;
+
+$('apiUrl').value = store.get('api', DEFAULT_API); $('pin').value = store.get('pin', '');
+buildLayoutUI();
+if (DEMO || store.get('pin', '')) { $('settingsCard').classList.add('hidden'); loadItems(); }
+</script>
+</body>
+</html>
