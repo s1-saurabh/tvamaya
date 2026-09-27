@@ -102,6 +102,13 @@
           <select id="qrSide"><option value="left">Left</option><option value="right">Right</option></select></div>
         <div><div class="small">QR size (mm)</div><input type="number" id="qrmm" min="12" max="60" step="1"></div>
         <div><div class="small">Brand text</div><input type="text" id="brandText"></div>
+        <div style="grid-column:1/-1"><div class="small">When size is blank, print</div>
+          <select id="blankSize">
+            <option value="auto">Auto: "Unstitched" or "Free size" (by category)</option>
+            <option value="Free size">Always "Free size"</option>
+            <option value="Unstitched">Always "Unstitched"</option>
+            <option value="">Nothing (hide size row)</option>
+          </select></div>
       </div>
 
       <details open style="margin-top:10px">
@@ -127,7 +134,7 @@ const FIELD_DEFS = [
   { key:'price',   label:'Price',              pt:12, on:true  },
   { key:'tag',     label:'Tag code',           pt:5,  on:true  },
 ];
-const DEFAULT_LAYOUT = { wmm:50, hmm:30, dpi:203, qrSide:'left', qrmm:24, brandText:'TVAMAYA', pureBW:true, border:false,
+const DEFAULT_LAYOUT = { wmm:50, hmm:30, dpi:203, qrSide:'left', qrmm:24, brandText:'TVAMAYA', blankSize:'auto', pureBW:true, border:false,
   fields: Object.fromEntries(FIELD_DEFS.map(f => [f.key, { on:f.on, pt:f.pt }])) };
 
 // ---------- storage (per device, fail-safe) ----------
@@ -157,10 +164,11 @@ async function api(action, extra = {}) {
 }
 function demoApi() {
   return { ok:true, items:[
-    { serial:45, tag:'TV-UP-RD-OR-2609-00045', name:'TEST - Blue organza kurta', fabric:'Organza', emb1:'Chikankari', emb2:'', size:'M', tagPrice:1599, status:'In stock' },
-    { serial:1,  tag:'TV-UP-US-MC-2609-00001', name:'Mul Chanderi Kashmiri handwork - Olive green', fabric:'Mul Chanderi', emb1:'Kashmiri Embroidery', emb2:'', size:'', tagPrice:3642, status:'In stock' },
-    { serial:7,  tag:'TV-UP-US-BS-2609-00007', name:'Banarasi Silk with Zardosi + French Knot', fabric:'Banarasi Silk', emb1:'Zardosi', emb2:'French Knot', size:'', tagPrice:4550, status:'In stock' },
-    { serial:44, tag:'TV-CH-RD-SL-2609-00044', name:'white with handwork - 3 piece Silk', fabric:'Silk', emb1:'Hand Embroidery', emb2:'', size:'XL', tagPrice:7699, status:'Sold' },
+    { serial:45, tag:'TV-UP-RD-OR-2609-00045', name:'TEST - Blue organza kurta', category:'Readymade', fabric:'Organza', emb1:'Chikankari', emb2:'', size:'M', tagPrice:1599, status:'In stock' },
+    { serial:1,  tag:'TV-UP-US-MC-2609-00001', name:'Mul Chanderi Kashmiri handwork - Olive green', category:'Unstitched', fabric:'Mul Chanderi', emb1:'Kashmiri Embroidery', emb2:'', size:'', tagPrice:3642, status:'In stock' },
+    { serial:7,  tag:'TV-UP-US-BS-2609-00007', name:'Banarasi Silk with Zardosi + French Knot', category:'Unstitched', fabric:'Banarasi Silk', emb1:'Zardosi', emb2:'French Knot', size:'', tagPrice:4550, status:'In stock' },
+    { serial:30, tag:'TV-CH-RD-SL-2609-00030', name:'purple + Lavendar Silk', category:'Readymade', fabric:'Silk', emb1:'', emb2:'', size:'', tagPrice:6799, status:'In stock' },
+    { serial:44, tag:'TV-CH-RD-SL-2609-00044', name:'white with handwork - 3 piece Silk', category:'Readymade', fabric:'Silk', emb1:'Hand Embroidery', emb2:'', size:'XL', tagPrice:7699, status:'Sold' },
   ]};
 }
 
@@ -233,7 +241,9 @@ function renderLabel(item, L = layout) {
   g.textBaseline = 'top';
   const mono = pt => `500 ${ptPx(pt)}px ui-monospace, Menlo, monospace`;
   const det = [item.fabric, item.emb1, item.emb2].filter(Boolean).join(' · ');
-  const size = String(item.size || '').trim();
+  let size = String(item.size || '').trim();
+  if (!size) { const b = L.blankSize ?? 'auto';
+               size = b === 'auto' ? (/unstitch/i.test(item.category || '') ? 'Unstitched' : 'Free size') : b; }
 
   // Rows, top to bottom. Size always gets its own row under name + description.
   const rows = [];
@@ -317,7 +327,7 @@ function makePdf() {
 // ---------- layout UI ----------
 function buildLayoutUI() {
   $('wmm').value = layout.wmm; $('hmm').value = layout.hmm; $('dpi').value = layout.dpi;
-  $('qrSide').value = layout.qrSide; $('qrmm').value = layout.qrmm; $('brandText').value = layout.brandText;
+  $('qrSide').value = layout.qrSide; $('qrmm').value = layout.qrmm; $('brandText').value = layout.brandText; $('blankSize').value = layout.blankSize ?? 'auto';
   $('pureBW').checked = layout.pureBW; $('border').checked = layout.border;
   $('fields').innerHTML = '';
   FIELD_DEFS.forEach(f => {
@@ -331,7 +341,7 @@ function buildLayoutUI() {
   });
 }
 function saveLayout() { store.set('layout', layout); drawPreview(); }
-[['wmm','number'],['hmm','number'],['dpi','number'],['qrSide','text'],['qrmm','number'],['brandText','text']].forEach(([id, t]) =>
+[['wmm','number'],['hmm','number'],['dpi','number'],['qrSide','text'],['qrmm','number'],['brandText','text'],['blankSize','text']].forEach(([id, t]) =>
   $(id).addEventListener('input', () => { const v = $(id).value; layout[id] = t === 'number' ? (Number(v) || DEFAULT_LAYOUT[id]) : v; saveLayout(); }));
 ['pureBW','border'].forEach(id => $(id).addEventListener('change', () => { layout[id] = $(id).checked; saveLayout(); }));
 $('btnResetLayout').onclick = () => { layout = JSON.parse(JSON.stringify(DEFAULT_LAYOUT)); buildLayoutUI(); saveLayout(); };
